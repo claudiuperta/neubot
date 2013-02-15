@@ -28,9 +28,10 @@ import logging
 import random
 
 TEST_NAMES = [
-              'bittorrent',
-              'raw',
-              'speedtest',
+             'bittorrent',
+             'raw',
+             'speedtest',
+             'voip',
              ]
 
 class RunnerPolicy(object):

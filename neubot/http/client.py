@@ -123,6 +123,7 @@ class ClientHTTP(StreamHandler):
 
     def connect_uri(self, uri, count=1):
         ''' Connects to the given URI '''
+        logging.info('[==VOIP==] Connect uri: %s', uri)
         try:
             message = Message()
             message.compose(method="GET", uri=uri)

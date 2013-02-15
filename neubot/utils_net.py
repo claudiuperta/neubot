@@ -131,13 +131,16 @@ def listen(epnt, prefer_ipv6):
         try:
             logging.debug('listen(): trying with: %s', format_ainfo(ainfo))
 
+            print ('listen(): trying to listen on : %s') %( format_ainfo(ainfo))
             sock = socket.socket(ainfo[0], socket.SOCK_STREAM)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             sock.setblocking(False)
             sock.bind(ainfo[4])
+            #sock.bind(('localhost', 23237))
             # Probably the backlog here is too big
             sock.listen(128)
 
+            print ('listen(): listening on : %s') %( format_ainfo(ainfo))
             logging.debug('listen(): listening at: %s', format_epnt(ainfo[4]))
             sockets.append(sock)
 

@@ -43,6 +43,7 @@ MODULES = {
     "speedtest.server"    : "speedtest.server",
     "stream"              : "net.stream",
     'viewer'              : 'viewer',
+    'voip'                : 'voip',
 }
 
 #

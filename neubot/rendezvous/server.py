@@ -86,7 +86,7 @@ class ServerRendezvous(ServerHTTP):
         version = self.conf["rendezvous.server.update_version"]
         if version and ibody.version:
             diff = utils_version.compare(version, ibody.version)
-            logging.debug('rendezvous: version=%s ibody.version=%s diff=%f', 
+            logging.debug('rendezvous: version=%s ibody.version=%s diff=%f',
                       version, ibody.version, diff)
             if diff > 0:
                 obody.update["uri"] = 'http://neubot.org/'

@@ -1,4 +1,4 @@
-# neubot/speedtest/client.py
+# neubot/voip/client.py
 
 #
 # Copyright (c) 2010-2012 Simone Basso <bassosimone@gmail.com>,
@@ -25,156 +25,60 @@ import collections
 import sys
 import logging
 
-from neubot.utils_random import RandomBody
 from neubot.config import CONFIG
 from neubot.database import DATABASE
-from neubot.database import table_speedtest
 from neubot.http.client import ClientHTTP
 from neubot.http.message import Message
 from neubot.net.poller import POLLER
 from neubot.notify import NOTIFIER
 from neubot.state import STATE
-from neubot.speedtest.wrapper import SpeedtestCollect
-from neubot.speedtest.wrapper import SpeedtestNegotiate_Response
+
 from neubot import utils_version
 
 from neubot.main import common
+from neubot.compat import json
+
 from neubot import marshal
 from neubot import privacy
 from neubot import utils
 
-from neubot.bytegen_speedtest import BytegenSpeedtest
 from neubot import runner_clnt
 
 from neubot import utils_version
 
+
 TESTDONE = "testdone" #TODO: use directly the string instead
-
-ESTIMATE = {
-    "download": 64000,
-    "upload": 64000,
-}
-LO_THRESH = 3
-TARGET = 5
-
-class ClientLatency(ClientHTTP):
-    def __init__(self, poller):
-        ClientHTTP.__init__(self, poller)
-        self.ticks = {}
-
-    def connection_ready(self, stream):
-        request = Message()
-        request.compose(method="HEAD", pathquery="/speedtest/latency",
-          host=self.host_header)
-        request["authorization"] = self.conf.get(
-          "speedtest.client.authorization", "")
-        self.ticks[stream] = utils.ticks()
-        stream.send_request(request)
-
-    def got_response(self, stream, request, response):
-        ticks = utils.ticks() - self.ticks[stream]
-        self.conf.setdefault("speedtest.client.latency",
-          []).append(ticks)
-
-class ClientDownload(ClientHTTP):
-    def __init__(self, poller):
-        ClientHTTP.__init__(self, poller)
-        self.ticks = {}
-        self.bytes = {}
-
-    def connection_ready(self, stream):
-        request = Message()
-        request.compose(method="GET", pathquery="/speedtest/download",
-          host=self.host_header)
-
-        #
-        # With version 2, we do not send range header and the
-        # server will understand that it needs to send us chunked
-        # data for its TARGET number of seconds.
-        #
-        if self.conf['version'] == 1:
-            request["range"] = "bytes=0-%d" % ESTIMATE['download']
-
-        request["authorization"] = self.conf.get(
-          "speedtest.client.authorization", "")
-        self.ticks[stream] = utils.ticks()
-        self.bytes[stream] = stream.bytes_recv_tot
-        response = Message()
-        response.body.write = lambda piece: None
-        stream.send_request(request, response)
-
-    def got_response(self, stream, request, response):
-        total = stream.bytes_recv_tot - self.bytes[stream]
-        self.conf.setdefault("speedtest.client.download",
-          []).append((self.ticks[stream], utils.ticks(), total))
-
-class ClientUpload(ClientHTTP):
-    def __init__(self, poller):
-        ClientHTTP.__init__(self, poller)
-        self.ticks = {}
-        self.bytes = {}
-
-    def connection_ready(self, stream):
-        request = Message()
-
-        #
-        # With version 2, we upload bytes using chunked transfer
-        # encoding for TARGET seconds.
-        #
-        if self.conf['version'] == 2:
-            body = BytegenSpeedtest(TARGET)
-            request.compose(method='POST', chunked=body,
-              pathquery='/speedtest/upload', host=self.host_header)
-            request['authorization'] = self.conf[
-              'speedtest.client.authorization']
-            stream.send_request(request)
-            self.ticks[stream] = utils.ticks()
-            self.bytes[stream] = stream.bytes_sent_tot
-            return
-
-        request.compose(method="POST", body=RandomBody(ESTIMATE["upload"]),
-          pathquery="/speedtest/upload", host=self.host_header)
-        request["authorization"] = self.conf.get(
-          "speedtest.client.authorization", "")
-        self.ticks[stream] = utils.ticks()
-        self.bytes[stream] = stream.bytes_sent_tot
-        stream.send_request(request)
-
-    def got_response(self, stream, request, response):
-        total = stream.bytes_sent_tot - self.bytes[stream]
-        self.conf.setdefault("speedtest.client.upload",
-          []).append((self.ticks[stream], utils.ticks(), total))
 
 class ClientNegotiate(ClientHTTP):
     def connection_ready(self, stream):
         request = Message()
-        request.compose(method="GET", pathquery="/speedtest/negotiate",
+        request.compose(method="GET", pathquery="/voip/negotiate",
           host=self.host_header)
         request["authorization"] = self.conf.get(
-          "speedtest.client.authorization", "")
+          "voip.client.authorization", "")
         stream.send_request(request)
 
     def got_response(self, stream, request, response):
-        m = marshal.unmarshal_object(response.body.read(), "text/xml",
-                                     SpeedtestNegotiate_Response)
-        self.conf["speedtest.client.authorization"] = m.authorization
-        self.conf["speedtest.client.public_address"] = m.publicAddress
-        self.conf["speedtest.client.unchoked"] = utils.intify(m.unchoked)
-        if m.queuePos:
-            self.conf["speedtest.client.queuepos"] = m.queuePos
+        logging.info('[==VoIP==] got_response(s)')
+        m = json.loads(response.body.read())
+        self.conf["voip.client.authorization"] = m['authorization']
+        self.conf["voip.client.public_address"] = m['real_address']
+        self.conf["voip.client.unchoked"] = utils.intify(m['unchoked'])
+        if m['queue_pos']:
+            self.conf["voip.client.queuepos"] = m['queue_pos']
 
 ### Glue result class and dictionary ###
 
 #
-# FIXME The following function glues the speedtest code and
-# the database code.  The speedtest code passes downstream a
+# FIXME The following function glues the voip code and
+# the database code.  The voip code passes downstream a
 # an object with the following problems:
 #
 # 1. the timestamp _might_ be a floating because old
 #    neubot clients have this bug;
 #
 def obj_to_dict(obj):
-    ''' Hack to convert speedtest result object into a
+    ''' Hack to convert voip result object into a
         dictionary. '''
     dictionary = {
         "uuid": obj.client,
@@ -198,7 +102,7 @@ def obj_to_dict(obj):
     return dictionary
 
 def insertxxx(connection, obj, commit=True, override_timestamp=True):
-    ''' Hack to insert a result object into speedtest table,
+    ''' Hack to insert a result object into voip table,
         converting it into a dictionary. '''
     table_speedtest.insert(connection, obj_to_dict(obj), commit,
                            override_timestamp)
@@ -211,12 +115,12 @@ class ClientCollect(ClientHTTP):
         m1.client = self.conf.get("uuid", "")
         m1.timestamp = utils.timestamp()
         m1.internalAddress = stream.myname[0]
-        m1.realAddress = self.conf.get("speedtest.client.public_address", "")
+        m1.realAddress = self.conf.get("voip.client.public_address", "")
         m1.remoteAddress = stream.peername[0]
 
-        m1.latency = self.conf.get("speedtest.client.latency", 0.0)
-        m1.downloadSpeed = self.conf.get("speedtest.client.download", 0.0)
-        m1.uploadSpeed = self.conf.get("speedtest.client.upload", 0.0)
+        m1.latency = self.conf.get("voip.client.latency", 0.0)
+        m1.downloadSpeed = self.conf.get("voip.client.download", 0.0)
+        m1.uploadSpeed = self.conf.get("voip.client.upload", 0.0)
 
         m1.privacy_informed = self.conf.get("privacy.informed", 0)
         m1.privacy_can_collect = self.conf.get("privacy.can_collect", 0)
@@ -228,7 +132,7 @@ class ClientCollect(ClientHTTP):
         m1.connectTime = sum(self.rtts) / len(self.rtts)
 
         # Test version (added Neubot 0.4.12)
-        m1.testVersion = CONFIG['speedtest_test_version']
+        m1.testVersion = CONFIG['voip_test_version']
 
         s = marshal.marshal_object(m1, "text/xml")
         stringio = StringIO.StringIO(s)
@@ -239,16 +143,16 @@ class ClientCollect(ClientHTTP):
         #
         if privacy.collect_allowed(m1.__dict__):
             if DATABASE.readonly:
-                logging.warning('speedtest: readonly database')
+                logging.warning('voip: readonly database')
             else:
                 insertxxx(DATABASE.connection(), m1)
 
         request = Message()
-        request.compose(method="POST", pathquery="/speedtest/collect",
+        request.compose(method="POST", pathquery="/voip/collect",
                         body=stringio, mimetype="application/xml",
                         host=self.host_header)
         request["authorization"] = self.conf.get(
-          "speedtest.client.authorization", "")
+          "voip.client.authorization", "")
 
         stream.send_request(request)
 
@@ -263,13 +167,13 @@ class ClientCollect(ClientHTTP):
 #
 QUEUE_HISTORY = []
 
-class ClientSpeedtest(ClientHTTP):
+class ClientVoIP(ClientHTTP):
     def __init__(self, poller):
         ClientHTTP.__init__(self, poller)
-        STATE.update("test_latency", "---", publish=False)
-        STATE.update("test_download", "---", publish=False)
-        STATE.update("test_upload", "---", publish=False)
-        STATE.update("test_name", "speedtest")
+        STATE.update("test_sip", "---", publish=False)
+        STATE.update("test_skype", "---", publish=False)
+        STATE.update("test_viber", "---", publish=False)
+        STATE.update("test_name", "voip")
         self.child = None
         self.streams = collections.deque()
         self.finished = False
@@ -280,19 +184,20 @@ class ClientSpeedtest(ClientHTTP):
 
     def connect_uri(self, uri=None, count=None):
         if not uri:
-            uri = self.conf.get("speedtest.client.uri",
-              "http://master.neubot.org/")
+            uri = self.conf.get("voip.client.uri",
+              "localhost:8080")
         if not count:
-            count = self.conf.get("speedtest.client.nconn", 1)
-        logging.info("* speedtest with %s", uri)
+            count = self.conf.get("voip.client.nconn", 1)
+        logging.info("* voip with %s", uri)
+        logging.info('ClientHTTP.connect_uri(self, uri, count)')
         ClientHTTP.connect_uri(self, uri, count)
 
     def connection_ready(self, stream):
 
-        self.conf['version'] = CONFIG['speedtest_test_version']
+        self.conf['version'] = CONFIG['voip_test_version']
 
         self.streams.append(stream)
-        if len(self.streams) == self.conf.get("speedtest.client.nconn", 1):
+        if len(self.streams) == self.conf.get("voip.client.nconn", 1):
             self.update()
 
     #
@@ -304,6 +209,7 @@ class ClientSpeedtest(ClientHTTP):
         self.cleanup(message="connection failed")
 
     def connection_lost(self, stream):
+        logging.info('[==VOIP==] Connection lost')
         self.cleanup(message="connection lost")
 
     #
@@ -315,7 +221,7 @@ class ClientSpeedtest(ClientHTTP):
         if not self.finished:
             self.finished = True
             if message:
-                logging.error("* speedtest: %s", message)
+                logging.error("* voip: %s", message)
             while self.streams:
                 self.streams.popleft().close()
             self.child = None
@@ -342,53 +248,56 @@ class ClientSpeedtest(ClientHTTP):
                 self.update()
 
     def update(self):
+        logging.info('[==VOIP==] State is %s', self.state)
         if self.finished:
             return
 
         #
         # Decide whether we can transition to the next phase of
-        # the speedtest or not.  Fall through to next request if
+        # the voip or not.  Fall through to next request if
         # needed, or return to the caller and rewind the stack.
         #
 
         ostate = self.state
+        logging.info('[==VOIP==] State is %s', self.state)
 
         if not self.state:
             self.state = "negotiate"
             del QUEUE_HISTORY[:]
 
         elif self.state == "negotiate":
-            if self.conf.get("speedtest.client.unchoked", False):
-                logging.info("* speedtest: %s ... authorized to "
+            logging.info('State is negotiate')
+            if self.conf.get("voip.client.unchoked", False):
+                logging.info("* voip: %s ... authorized to "
                   "take the test\n", self.state)
                 self.state = "latency"
-            elif "speedtest.client.queuepos" in self.conf:
-                queuepos = self.conf["speedtest.client.queuepos"]
-                logging.info("* speedtest: %s ... waiting in queue, "
+            elif "voip.client.queuepos" in self.conf:
+                queuepos = self.conf["voip.client.queuepos"]
+                logging.info("* voip: %s ... waiting in queue, "
                   "pos %s\n", self.state, queuepos)
                 STATE.update("negotiate", {"queue_pos": queuepos})
                 QUEUE_HISTORY.append(queuepos)
 
         elif self.state == "latency":
-            tries = self.conf.get("speedtest.client.latency_tries", 10)
+            tries = self.conf.get("voip.client.latency_tries", 10)
             if tries == 0:
                 # Calculate average latency
-                latency = self.conf["speedtest.client.latency"]
+                latency = self.conf["voip.client.latency"]
                 latency = sum(latency) / len(latency)
-                self.conf["speedtest.client.latency"] = latency
+                self.conf["voip.client.latency"] = latency
                 # Advertise the result
                 STATE.update("test_latency", utils.time_formatter(latency))
-                logging.info("* speedtest: %s ...  done, %s\n", self.state,
+                logging.info("* voip: %s ...  done, %s\n", self.state,
                   utils.time_formatter(latency))
                 self.state = "download"
             else:
-                self.conf["speedtest.client.latency_tries"] = tries - 1
+                self.conf["voip.client.latency_tries"] = tries - 1
 
         elif self.state in ("download", "upload"):
-            if len(self.streams) == self.conf.get("speedtest.client.nconn", 1):
+            if len(self.streams) == self.conf.get("voip.client.nconn", 1):
 
                 # Calculate average speed
-                speed = self.conf["speedtest.client.%s" % self.state]
+                speed = self.conf["voip.client.%s" % self.state]
                 elapsed = (max(map(lambda t: t[1], speed)) -
                   min(map(lambda t: t[0], speed)))
                 speed = sum(map(lambda t: t[2], speed)) / elapsed
@@ -402,21 +311,21 @@ class ClientSpeedtest(ClientHTTP):
                 #
                 if elapsed > LO_THRESH:
                     ESTIMATE[self.state] *= TARGET/elapsed
-                    self.conf["speedtest.client.%s" % self.state] = speed
+                    self.conf["voip.client.%s" % self.state] = speed
                     # Advertise
                     STATE.update("test_%s" % self.state,
                       utils.speed_formatter(speed))
-                    logging.info("* speedtest: %s ...  done, %s\n", self.state,
+                    logging.info("* voip: %s ...  done, %s\n", self.state,
                       utils.speed_formatter(speed))
                     if self.state == "download":
                         self.state = "upload"
                     else:
                         self.state = "collect"
                 elif elapsed > LO_THRESH/3:
-                    del self.conf["speedtest.client.%s" % self.state]
+                    del self.conf["voip.client.%s" % self.state]
                     ESTIMATE[self.state] *= TARGET/elapsed
                 else:
-                    del self.conf["speedtest.client.%s" % self.state]
+                    del self.conf["voip.client.%s" % self.state]
                     ESTIMATE[self.state] *= 2
 
             else:
@@ -424,7 +333,7 @@ class ClientSpeedtest(ClientHTTP):
                 return
 
         elif self.state == "collect":
-            logging.info("* speedtest: %s ... done\n", self.state)
+            logging.info("* voip: %s ... done\n", self.state)
             self.cleanup()
             return
 
@@ -433,7 +342,7 @@ class ClientSpeedtest(ClientHTTP):
 
         #
         # Perform state transition and run the next phase of the
-        # speedtest.  Not all phases need to employ all the connection
+        # voip.  Not all phases need to employ all the connection
         # with the upstream server.
         #
 
@@ -456,12 +365,12 @@ class ClientSpeedtest(ClientHTTP):
             self.child.host_header = self.host_header
             if self.state not in ("negotiate", "collect"):
                 if ostate == "negotiate" and self.state == "latency":
-                    STATE.update("test", "speedtest")
+                    STATE.update("test", "voip")
             else:
                 STATE.update(self.state)
-            logging.info("* speedtest: %s in progress...", self.state)
+            logging.info("* voip: %s in progress...", self.state)
         elif self.state == "negotiate":
-            logging.info("* speedtest: %s in progress...", self.state)
+            logging.info("* voip: %s in progress...", self.state)
 
         while self.streams:
             #
@@ -475,20 +384,20 @@ class ClientSpeedtest(ClientHTTP):
                 break
 
 CONFIG.register_defaults({
-   "speedtest.client.uri": "http://master.neubot.org/",
-    "speedtest.client.nconn": 1,
-    "speedtest.client.latency_tries": 10,
+    "voip.client.uri": "http://localhost:8080/",
+    "voip.client.nconn": 1,
+    "voip.client.latency_tries": 10,
 })
 
 def main(args):
 
     CONFIG.register_descriptions({
-        "speedtest.client.uri": "Base URI to connect to",
-        "speedtest.client.nconn": "Number of concurrent connections to use",
-        "speedtest.client.latency_tries": "Number of latency measurements",
+        "voip.client.uri": "Base URI to connect to",
+        "voip.client.nconn": "Number of concurrent connections to use",
+        "voip.client.latency_tries": "Number of latency measurements",
     })
 
-    common.main("speedtest.client", "Speedtest client", args)
+    common.main("voip.client", "VoIP client", args)
     conf = CONFIG.copy()
 
     #
@@ -506,7 +415,7 @@ def main(args):
         runner_clnt.runner_client(conf["agent.api.address"],
                                   conf["agent.api.port"],
                                   CONFIG['verbose'],
-                                  "speedtest")):
+                                  "voip")):
         sys.exit(0)
 
     logging.info('Will run the test in the local context...')
@@ -515,16 +424,16 @@ def main(args):
         privacy.complain()
         sys.exit(1)
 
-    client = ClientSpeedtest(POLLER)
+    client = ClientVoIP(POLLER)
     client.configure(conf)
 
     #
-    # XXX Quick and dirty fix such that `neubot speedtest` when
+    # XXX Quick and dirty fix such that `neubot voip` when
     # there is no daemon running considers both the master and
     # the backup master server.  At the same time, respect user
     # choices if she overrides the default URI.
     #
-    if CONFIG['speedtest.client.uri'] == 'http://master.neubot.org/':
+    if CONFIG['voip.client.uri'] == 'http://localhost:8080/':
         client.connect(('localhost', 8080))
     else:
         client.connect_uri()

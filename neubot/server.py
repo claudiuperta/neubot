@@ -64,6 +64,8 @@ import neubot.rendezvous.server
 #from neubot import speedtest           # Not yet
 import neubot.speedtest.wrapper
 
+import neubot.voip.server
+
 class DebugAPI(ServerHTTP):
     ''' Implements the debugging API '''
 
@@ -160,10 +162,11 @@ class ServerSideAPI(ServerHTTP):
 
 SETTINGS = {
     "server.bittorrent": True,
-    "server.daemonize": True,
+    "server.daemonize": False,
     'server.debug': False,
     "server.negotiate": True,
     "server.raw": True,
+    "server.voip": True,
     "server.rendezvous": False,         # Not needed on the random server
     "server.sapi": True,
     "server.speedtest": True,
@@ -269,6 +272,10 @@ def main(args):
         #conf['speedtest.listen'] = 1           # Not yet
         #conf['speedtest.negotiate'] = 1        # Not yet
         neubot.speedtest.wrapper.run(POLLER, conf)
+
+    # VoIP tests.
+    if conf["server.voip"]:
+        neubot.voip.server.run(POLLER, conf)
 
     # Migrating from old style to new style
     if conf["server.rendezvous"]:

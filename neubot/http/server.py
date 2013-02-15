@@ -178,9 +178,13 @@ class ServerHTTP(StreamHandler):
 
     def process_request(self, stream, request):
         ''' Process a request and generate the response '''
+
+        logging.info('[==VOIP==] processing request...')
         response = Message()
 
         if not request.uri.startswith("/"):
+            logging.info('[==VOIP==] not request.uri.startswith(/)')
+
             response.compose(code="403", reason="Forbidden",
                              body="403 Forbidden")
             stream.send_response(request, response)
@@ -192,7 +196,9 @@ class ServerHTTP(StreamHandler):
                 return
 
         rootdir = self.conf.get("http.server.rootdir", "")
+        logging.info('[==VOIP==] rootdir is %s', rootdir)
         if not rootdir:
+            logging.info('[==VOIP==] not rootdir')
             response.compose(code="403", reason="Forbidden",
                              body="403 Forbidden")
             stream.send_response(request, response)
@@ -215,6 +221,7 @@ class ServerHTTP(StreamHandler):
         fullpath = utils.asciiify(fullpath)
 
         if not fullpath.startswith(rootdir):
+            logging.info('[==VOIP==] not fullpath.startswith(rootdir)')
             response.compose(code="403", reason="Forbidden",
                              body="403 Forbidden")
             stream.send_response(request, response)

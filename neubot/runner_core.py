@@ -77,8 +77,10 @@ class RunnerCore(object):
             deferred2.add_callback(lambda param: None)
             if test == 'raw':
                 # Raw uses mlab-ns and wants a random server
+                logging.debug('[==VOIP==] Test is raw...')
                 self.queue.append(('mlab-ns', deferred2, {'policy': 'random'}))
             else:
+                logging.debug('[==VOIP==] Rendezvous...')
                 self.queue.append(('rendezvous', deferred2, None))
         self.queue.append((test, deferred, ctx))
         self.run_queue()
@@ -129,6 +131,7 @@ class RunnerCore(object):
             raise RuntimeError('runner_core: bad privacy settings')
 
         elif first_elem[0] == 'rendezvous':
+            logging.info('[==VOIP==] agent.master is %s', conf['agent.master'])
             runner_rendezvous.run(conf['agent.master'], '9773')
 
         elif first_elem[0] == 'speedtest':
