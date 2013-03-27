@@ -50,6 +50,11 @@ class BackendMLab(BackendNull):
         ''' Saves the results of a speedtest test '''
         self.do_store('speedtest', message)
 
+    def voip_store(self, message):
+        ''' Saves the results of a voip test '''
+        # TODO(claudiu) To be implemented.
+        pass
+
     @staticmethod
     def do_store(test, message):
         ''' Saves the results of the given test '''

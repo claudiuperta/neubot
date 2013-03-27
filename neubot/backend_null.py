@@ -33,3 +33,6 @@ class BackendNull(object):
 
     def speedtest_store(self, message):
         ''' Save result of speedtest test '''
+
+    def voip_store(self, message):
+        ''' Save result of a VoIP test '''

@@ -63,3 +63,8 @@ class BackendNeubot(BackendNull):
             logging.warning('backend_neubot: readonly database')
             return
         table_speedtest.insert(DATABASE.connection(), message)
+
+    def voip_store(self, message):
+        ''' Saves the results of a voip test '''
+        # TODO(claudiu) To be implemented.
+        pass

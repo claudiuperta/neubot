@@ -45,8 +45,7 @@ class NegotiateServerVoIP(NegotiateServerModule):
             # Create record for this session
             self.clients.add(ident)
             stream.atclose(self._update_clients)
-            #return {'authorization': ident}
-            return {'authorization': ident, 'id': 'VoIP'}
+            return {'authorization': ident}
         else:
             raise RuntimeError('Multiple unchoke')
 
