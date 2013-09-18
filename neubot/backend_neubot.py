@@ -64,7 +64,7 @@ class BackendNeubot(BackendNull):
             return
         table_speedtest.insert(DATABASE.connection(), message)
 
-    def voip_store(self, message):
-        ''' Saves the results of a voip test '''
+    def skype_store(self, message):
+        ''' Saves the results of a skype test '''
         # TODO(claudiu) To be implemented.
         pass

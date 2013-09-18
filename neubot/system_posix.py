@@ -32,7 +32,7 @@
 # the latter can.
 #
 
-UNPRIV_USER = 'claudiu'
+UNPRIV_USER = 'perta'
 
 import os
 import syslog

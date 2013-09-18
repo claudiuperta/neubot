@@ -136,8 +136,9 @@ class SkypeClient(Handler):
         #context.bufferise(data)
         #tmp = context.pullup(len(PINGBACK))
         #if not tmp:
-            stream.recv(len(PINGBACK), self._waiting_pingback)
-            return
+        stream.recv(len(PINGBACK), self._waiting_pingback)
+        return
+
         if tmp[4:5] != PINGBACK_CODE:
             raise RuntimeError('skype_clnt: received invalid message')
         timediff = utils.ticks() - context.alrtt_ticks
@@ -295,7 +296,7 @@ def main(args):
 
     prefer_ipv6 = 0
     address = '127.0.0.1'
-    port = 12345
+    port = 45678
     sslconfig = False
     verbose = 0
     for name, value in options:

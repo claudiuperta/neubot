@@ -214,7 +214,7 @@ CONFIG.register_defaults({
     "privacy.can_publish": True,
     "runner.enabled": 1,
     "speedtest_test_version": 1,
-    "voip_test_version": 1,
+    "skype_test_version": 1,
     "uuid": "",
     "version": "",
     'win32_updater': 1,

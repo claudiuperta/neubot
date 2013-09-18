@@ -32,8 +32,6 @@ TEST_NAMES = [
              'raw',
              'speedtest',
              'skype',
-             'google_talk',
-             'viber',
              ]
 
 class RunnerPolicy(object):

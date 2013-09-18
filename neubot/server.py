@@ -53,6 +53,7 @@ from neubot.backend import BACKEND
 from neubot.filesys import FILESYS
 from neubot.log import LOG
 from neubot.raw_srvr_glue import RAW_SERVER_EX
+from neubot.skype_srvr_glue import SKYPE_SERVER_EX
 
 from neubot import bittorrent
 from neubot import negotiate
@@ -63,8 +64,6 @@ import neubot.rendezvous.server
 
 #from neubot import speedtest           # Not yet
 import neubot.speedtest.wrapper
-
-import neubot.voip.server
 
 class DebugAPI(ServerHTTP):
     ''' Implements the debugging API '''
@@ -166,9 +165,9 @@ SETTINGS = {
     'server.debug': False,
     "server.negotiate": True,
     "server.raw": True,
-    "server.voip": True,
     "server.rendezvous": False,         # Not needed on the random server
     "server.sapi": True,
+    "server.skype": True,
     "server.speedtest": True,
 }
 
@@ -188,11 +187,12 @@ valid defines:
   server.raw        Set to nonzero to enable RAW server (default: 1)
   server.rendezvous Set to nonzero to enable rendezvous server (default: 0)
   server.sapi       Set to nonzero to enable nagios API (default: 1)
+  server.skype      Set to nonzero to enable skype server (default: 1)
   server.speedtest  Set to nonzero to enable speedtest server (default: 1)'''
 
 VALID_MACROS = ('server.bittorrent', 'server.daemonize', 'server.debug',
                 'server.negotiate', 'server.raw', 'server.rendezvous',
-                'server.sapi', 'server.speedtest')
+                'server.sapi', 'server.skype', 'server.speedtest')
 
 def main(args):
     """ Starts the server module """
@@ -255,6 +255,12 @@ def main(args):
           CONFIG['prefer_ipv6'], 0, '')
         logging.debug('server: starting raw server... complete')
 
+    if conf['server.skype']:
+        logging.debug('server: starting skype server... in progress')
+        SKYPE_SERVER_EX.listen((":: 0.0.0.0", 45678),
+            CONFIG['prefer_ipv6'], 0, '')
+        logging.debug('server: starting skype server... complete')
+
     #
     # New-style modules are started just setting a
     # bunch of conf[] variables and then invoking
@@ -272,10 +278,6 @@ def main(args):
         #conf['speedtest.listen'] = 1           # Not yet
         #conf['speedtest.negotiate'] = 1        # Not yet
         neubot.speedtest.wrapper.run(POLLER, conf)
-
-    # VoIP tests.
-    if conf["server.voip"]:
-        neubot.voip.server.run(POLLER, conf)
 
     # Migrating from old style to new style
     if conf["server.rendezvous"]:

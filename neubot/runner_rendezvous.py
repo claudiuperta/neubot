@@ -67,7 +67,7 @@ class RunnerRendezvous(ClientHTTP):
         ''' Invoked when the connection is ready '''
 
         message = {
-                   'accept': ['speedtest', 'bittorrent', 'voip'],
+                   'accept': ['speedtest', 'bittorrent', 'skype'],
                    'version': utils_version.CANONICAL_VERSION,
                    'privacy_informed': CONFIG['privacy.informed'],
                    'privacy_can_collect': CONFIG['privacy.can_collect'],

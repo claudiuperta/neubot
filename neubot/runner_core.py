@@ -77,10 +77,8 @@ class RunnerCore(object):
             deferred2.add_callback(lambda param: None)
             if test == 'raw':
                 # Raw uses mlab-ns and wants a random server
-                logging.debug('[==VOIP==] Test is raw...')
                 self.queue.append(('mlab-ns', deferred2, {'policy': 'random'}))
             else:
-                logging.debug('[==VOIP==] Rendezvous...')
                 self.queue.append(('rendezvous', deferred2, None))
         self.queue.append((test, deferred, ctx))
         self.run_queue()
@@ -163,9 +161,9 @@ class RunnerCore(object):
             handler.connect(('mlab-ns.appspot.com', 80),
               CONFIG['prefer_ipv6'], 0, extra)
 
-        elif first_elem[0] == 'voip':
-            uri = RUNNER_TESTS.test_to_negotiate_uri('voip')
-            conf['voip.client.uri'] =  uri
+        elif first_elem[0] == 'skype':
+            uri = RUNNER_TESTS.test_to_negotiate_uri('skype')
+            conf['skype.client.uri'] =  uri
             #client = ClientVoIP(POLLER)
             #client.configure(conf)
             #client.connect_uri()

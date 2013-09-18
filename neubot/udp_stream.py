@@ -42,7 +42,7 @@ from neubot import utils_net
 from neubot.main import common
 
 # States returned by the socket model
-STATES = [ SUCCESS, ERROR, WANT_READ, WANT_WRITE ] = range(5)
+STATES = [ SUCCESS, ERROR, WANT_READ, WANT_WRITE ] = range(4)
 
 # Maximum amount of bytes we read from a socket
 MAXBUF = 1 << 18

@@ -37,14 +37,13 @@ MODULES = {
     "raw"                 : "raw",
     "rendezvous.server"   : "rendezvous.server",
     "server"              : "server",
+    'skype'               : 'skype',
     "speedtest"           : "speedtest.client",
     "speedtest.client"    : "speedtest.client",
     "speedtest.negotiate" : "speedtest.negotiate",
     "speedtest.server"    : "speedtest.server",
     "stream"              : "net.stream",
     'viewer'              : 'viewer',
-    'voip'                : 'voip',
-    'skype'               : 'skype',
 }
 
 #

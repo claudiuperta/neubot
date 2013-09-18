@@ -1,4 +1,4 @@
-# neubot/backend_null.py
+# neubot/raw_srvr_glue.py
 
 #
 # Copyright (c) 2012 Simone Basso <bassosimone@gmail.com>,
@@ -20,20 +20,23 @@
 # along with Neubot.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-''' Null backend driver '''
+'''
+ Glue between skype_srvr.py and server-side negotiation.  Adds to skype_srvr.py
+ access control capabilities.
+'''
 
-class BackendNull(object):
-    ''' Null backend driver '''
+from neubot.negotiate.server_skype import NEGOTIATE_SERVER_SKYPE
+from neubot.skype_srvr import SkypeServer
 
-    def bittorrent_store(self, message):
-        ''' Save result of BitTorrent test '''
+class SkypeServerEx(SkypeServer):
+    ''' Negotiation-enabled SKYPE test server '''
+    # Same-as SkypeServer but checks that the peer is authorized
 
-    def store_raw(self, message):
-        ''' Save result of RAW test '''
+    def filter_auth(self, stream, tmp):
+        ''' Filter client auth '''
+        if tmp not in NEGOTIATE_SERVER_SKYPE.clients:
+            raise RuntimeError('skyoe_negotiate: unknown client')
+        context = stream.opaque
+        context.state = NEGOTIATE_SERVER_SKYPE.clients[tmp]
 
-    def speedtest_store(self, message):
-        ''' Save result of speedtest test '''
-
-    def skype_store(self, message):
-        ''' Save result of a Skype test '''
-
+SKYPE_SERVER_EX = SkypeServerEx()

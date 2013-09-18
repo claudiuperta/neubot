@@ -20,7 +20,7 @@
 # along with Neubot.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-''' VoIP test negotiator '''
+''' Skype test negotiator '''
 
 import logging
 
