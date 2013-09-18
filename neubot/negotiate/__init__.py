@@ -27,6 +27,7 @@ from neubot.negotiate.server_speedtest import NEGOTIATE_SERVER_SPEEDTEST
 from neubot.negotiate.server_bittorrent import NEGOTIATE_SERVER_BITTORRENT
 from neubot.negotiate.server_raw import NEGOTIATE_SERVER_RAW
 from neubot.negotiate.server_voip import NEGOTIATE_SERVER_VOIP
+from neubot.negotiate.server_skype import NEGOTIATE_SERVER_SKYPE
 from neubot.negotiate.server import NEGOTIATE_SERVER
 from neubot.http.server import HTTP_SERVER
 
@@ -43,6 +44,7 @@ def run(poller, conf):
     NEGOTIATE_SERVER.register_module('bittorrent', NEGOTIATE_SERVER_BITTORRENT)
     NEGOTIATE_SERVER.register_module('raw', NEGOTIATE_SERVER_RAW)
     NEGOTIATE_SERVER.register_module('voip', NEGOTIATE_SERVER_VOIP)
+    NEGOTIATE_SERVER.register_module('skype', NEGOTIATE_SERVER_SKYPE)
 
     HTTP_SERVER.register_child(NEGOTIATE_SERVER, '/negotiate/')
     HTTP_SERVER.register_child(NEGOTIATE_SERVER, '/collect/')

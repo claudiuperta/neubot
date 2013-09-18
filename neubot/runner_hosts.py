@@ -190,6 +190,8 @@ class RunnerHosts(object):
         logging.info('runner_hosts: table: num-hosts: %d, generated: "%s"',
           len(STATIC_TABLE), STATIC_TABLE_TIME)
         logging.warning('runner_hosts: selecting one static host at random')
-        return random.choice(STATIC_TABLE)
+        #return random.choice(STATIC_TABLE)
+        return 'localhost'
+
 
 RUNNER_HOSTS = RunnerHosts()

@@ -36,3 +36,7 @@ class BackendNull(object):
 
     def voip_store(self, message):
         ''' Save result of a VoIP test '''
+
+    def store_skype(self, message):
+        ''' Save result of a Skype test '''
+

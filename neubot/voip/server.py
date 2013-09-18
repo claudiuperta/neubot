@@ -21,12 +21,16 @@
 #
 
 import StringIO
+import cgi
+import logging
 
 from neubot.http.server import ServerHTTP
 from neubot.http.server import HTTP_SERVER
+from neubot.http.message import Message
+
 from neubot.negotiate.server import NEGOTIATE_SERVER
 from neubot.compat import json
-
+from neubot import utils
 
 class VoIPServer(ServerHTTP):
     ''' VoIP server  '''
@@ -44,7 +48,7 @@ class VoIPServer(ServerHTTP):
 
     def process_request(self, stream, request):
         ''' Dispatch and process the incoming HTTP request '''
-        if request.uri == '/voip/negotiate':
+        if request.uri.startswith('/voip/negotiate'):
             self.do_negotiate(stream, request)
         elif request.uri == '/voip/collect':
             self.do_collect(stream, request)
@@ -52,13 +56,27 @@ class VoIPServer(ServerHTTP):
             raise RuntimeError('Invalid URI')
 
     def do_negotiate(self, stream, request):
-        ''' Invoked on GET /speedtest/negotiate '''
-        request.uri = '/negotiate/speedtest'
-        request.body = StringIO.StringIO('{}')
-        NEGOTIATE_SERVER.process_request(stream, request)
+        ''' Invoked on GET /voip/negotiate'''
+
+        #request_body = json.loads(request.body)
+        logging.info('<VoIP> %s', request.body)
+
+        response_body = {
+            'uuid': utils.get_uuid(),
+            'voip_test': 'skype',
+        }
+
+        response = Message()
+        response.compose(code='200', reason='Ok',
+                         body=json.dumps(response_body),
+                         keepalive=True,
+                         mimetype='application/json')
+        stream.send_response(request, response)
 
     def do_collect(self, stream, request):
         ''' Invoked on GET /voip/collect '''
+
+        # TODO(claudiu)
         request.uri = '/collect/voip'
 
         message = {
@@ -85,8 +103,3 @@ def run(poller, conf):
 
     HTTP_SERVER.register_child(VOIP_SERVER, '/voip/negotiate')
     HTTP_SERVER.register_child(VOIP_SERVER, '/voip/collect')
-
-    HTTP_SERVER.register_child(VOIP_SERVER, '/voip/skype')
-    HTTP_SERVER.register_child(VOIP_SERVER, '/voip/sip')
-    HTTP_SERVER.register_child(VOIP_SERVER, '/voip/viber')
-    HTTP_SERVER.register_child(VOIP_SERVER, '/voip/google_talk')

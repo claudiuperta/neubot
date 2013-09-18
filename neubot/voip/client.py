@@ -87,9 +87,9 @@ def obj_to_dict(obj):
         "real_address": obj.realAddress,
         "remote_address": obj.remoteAddress,
         "connect_time": obj.connectTime,
-        "latency": obj.latency,
-        "download_speed": obj.downloadSpeed,
-        "upload_speed": obj.uploadSpeed,
+        "client_type": obj.client_type,
+        "test_type": obj.test_type,
+        "test_duration": obj.test_duration,
         "privacy_informed": obj.privacy_informed,
         "privacy_can_collect": obj.privacy_can_collect,
         "privacy_can_publish": obj.privacy_can_share,   #XXX

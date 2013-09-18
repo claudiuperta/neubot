@@ -40,7 +40,8 @@ class NegotiateServerVoIP(NegotiateServerModule):
 
     def unchoke(self, stream, request_body):
         ''' Invoked when we must unchoke a session '''
-        ident = str(hash(stream))
+        ident = str(hash(stream)).encode('hex')
+        logging.info('Returning authorization: %s', ident)
         if ident not in self.clients:
             # Create record for this session
             self.clients.add(ident)

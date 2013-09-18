@@ -36,6 +36,7 @@ SUBCOMMANDS = {
     'notifier': 'neubot.notifier',
     'privacy': 'neubot.privacy',
     'raw': 'neubot.raw',
+    'skype': 'neubot.skype',
     'speedtest': 'neubot.speedtest.client',
     'viewer': 'neubot.viewer',
 }

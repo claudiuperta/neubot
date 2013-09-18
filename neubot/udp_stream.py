@@ -51,8 +51,12 @@ MAXBUF = 1 << 18
 SOFT_ERRORS = [ errno.EAGAIN, errno.EWOULDBLOCK, errno.EINTR ]
 
 class UDPSocketWrapper(object):
-    def __init__(self, sock):
-        self.sock = sock
+    def __init__(self, local_address):
+        try:
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.sock.bind(local_address)
+        except socket.error:
+            logging.error('Exception', exc_info=1)
 
     def soclose(self):
         try:
@@ -62,7 +66,10 @@ class UDPSocketWrapper(object):
 
     def sorecv(self, maxlen):
         try:
-            octets = self.sock.recv(maxlen)
+            # Differently from the TCP stream, here we must
+            # also return the remote address.
+            # TODO (claudiu) Perform a check on the remote address
+            octets, address = self.sock.recvfrom(maxlen)
             return SUCCESS, octets
         except socket.error, exception:
             if exception[0] in SOFT_ERRORS:
@@ -70,9 +77,9 @@ class UDPSocketWrapper(object):
             else:
                 return ERROR, exception
 
-    def sosend(self, octets):
+    def sosend(self, datagram, address):
         try:
-            count = self.sock.send(octets)
+            count = self.sock.sendto(octets, address)
             return SUCCESS, count
         except socket.error, exception:
             if exception[0] in SOFT_ERRORS:
@@ -81,13 +88,15 @@ class UDPSocketWrapper(object):
                 return ERROR, exception
 
 class UDPStream(Pollable):
-    def __init__(self, poller):
+    '''Handles an UDP stream between two endpoints'''
+    # This is different from the tcp Stream class
+    # since we need to know the remote address.
+    def __init__(self, local_address, remote_address):
         Pollable.__init__(self)
-        self.poller = poller
-        self.parent = None
-        self.conf = None
+        # TODO(claudiu) Check that the address is well-formed.
+        self.remote_address = remote_address
 
-        self.sock = None
+        self.sock = UDPSocketWrapper(local_address)
         self.filenum = -1
         self.myname = None
         self.peername = None
@@ -115,30 +124,6 @@ class UDPStream(Pollable):
     def fileno(self):
         return self.filenum
 
-    def attach(self, parent, sock, conf):
-
-        self.parent = parent
-        self.conf = conf
-
-        self.filenum = sock.fileno()
-        self.myname = utils_net.getsockname(sock)
-        self.peername = utils_net.getpeername(sock)
-        self.logname = str((self.myname, self.peername))
-
-        logging.debug("* Connection made %s", str(self.logname))
-
-        self.sock = UDPSocketWrapper(sock)
-
-    def atclose(self, func):
-        if func in self.atclosev:
-            oops("Duplicate atclose(): %s" % func)
-        self.atclosev.add(func)
-
-    def unregister_atclose(self, func):
-        if func in self.atclosev:
-            self.atclosev.remove(func)
-
-    # Close path
 
     def close(self):
         self.close_pending = True
@@ -191,6 +176,8 @@ class UDPStream(Pollable):
             return
 
         status, octets = self.sock.sorecv(MAXBUF)
+        # TODO(claudiu) Check that the address we're
+        # receipting data matches self.remote_ddress
 
         if status == SUCCESS and octets:
 
@@ -278,7 +265,7 @@ class UDPStream(Pollable):
             self.handle_read()
             return
 
-        status, count = self.sock.sosend(self.send_octets)
+        status, count = self.sock.sosend(self.send_octets, self.remote_ddress)
 
         if status == SUCCESS and count > 0:
             self.bytes_sent_tot += count
@@ -329,179 +316,3 @@ class UDPStream(Pollable):
 
     def send_complete(self):
         pass
-
-class Listener(Pollable):
-    def __init__(self, poller, parent, sock, endpoint):
-        Pollable.__init__(self)
-        self.poller = poller
-        self.parent = parent
-        self.lsock = sock
-        self.endpoint = endpoint
-
-        # Want to listen "forever"
-        self.watchdog = -1
-
-    def __repr__(self):
-        return "listener at %s" % str(self.endpoint)
-
-    def listen(self):
-        self.poller.set_readable(self)
-        self.parent.started_listening(self)
-
-    def fileno(self):
-        return self.lsock.fileno()
-
-    #
-    # Catch all types of exception because an error in
-    # connection_made() MUST NOT cause the server to stop
-    # listening for new connections.
-    #
-    def handle_read(self):
-        try:
-            sock = self.lsock.accept()[0]
-            sock.setblocking(False)
-            self.parent.connection_made(sock, self.endpoint, 0)
-        except (KeyboardInterrupt, SystemExit):
-            raise
-        except Exception, exception:
-            self.parent.accept_failed(self, exception)
-            return
-
-    def handle_close(self):
-        self.parent.bind_failed(self.endpoint)  # XXX
-
-class StreamHandler(object):
-    def __init__(self, poller):
-        self.poller = poller
-        self.conf = {}
-        self.epnts = collections.deque()
-        self.bad = collections.deque()
-        self.good = collections.deque()
-        self.rtts = []
-
-    def configure(self, conf):
-        self.conf = conf
-
-    def listen(self, endpoint):
-        sockets = utils_net.listen(endpoint, CONFIG['prefer_ipv6'])
-        if not sockets:
-            self.bind_failed(endpoint)
-            return
-        for sock in sockets:
-            listener = Listener(self.poller, self, sock, endpoint)
-            listener.listen()
-
-    def bind_failed(self, epnt):
-        pass
-
-    def started_listening(self, listener):
-        pass
-
-    def accept_failed(self, listener, exception):
-        pass
-
-    def connect(self, endpoint, count=1):
-        while count > 0:
-            self.epnts.append(endpoint)
-            count = count - 1
-        self._next_connect()
-
-    def _next_connect(self):
-        if self.epnts:
-            connector = Connector(self.poller, self)
-            connector.connect(self.epnts.popleft(), self.conf)
-        else:
-            if self.bad:
-                while self.bad:
-                    connector, exception = self.bad.popleft()
-                    self.connection_failed(connector, exception)
-                while self.good:
-                    sock = self.good.popleft()
-                    sock.close()
-            else:
-                while self.good:
-                    sock, endpoint, rtt = self.good.popleft()
-                    self.connection_made(sock, endpoint, rtt)
-
-    def _connection_failed(self, connector, exception):
-        self.bad.append((connector, exception))
-        self._next_connect()
-
-    def connection_failed(self, connector, exception):
-        pass
-
-    def started_connecting(self, connector):
-        pass
-
-    def _connection_made(self, sock, endpoint, rtt):
-        self.rtts.append(rtt)
-        self.good.append((sock, endpoint, rtt))
-        self._next_connect()
-
-    def connection_made(self, sock, endpoint, rtt):
-        pass
-
-    def connection_lost(self, stream):
-        pass
-
-CONFIG.register_defaults({
-    # General variables
-    "net.stream.certfile": "",
-    "net.stream.secure": False,
-    "net.stream.server_side": False,
-    # For main()
-    "net.stream.address": "127.0.0.1 ::1",
-    "net.stream.chunk": 262144,
-    "net.stream.clients": 1,
-    "net.stream.duration": 10,
-    "net.stream.listen": False,
-    "net.stream.port": 12345,
-    "net.stream.proto": "",
-})
-
-def main(args):
-
-    CONFIG.register_descriptions({
-        # General variables
-        "net.stream.certfile": "Set SSL certfile path",
-        "net.stream.secure": "Enable SSL",
-        "net.stream.server_side": "Enable SSL server-side mode",
-        # For main()
-        "net.stream.address": "Set client or server address",
-        "net.stream.chunk": "Chunk written by each write",
-        "net.stream.clients": "Set number of client connections",
-        "net.stream.duration": "Set duration of a test",
-        "net.stream.listen": "Enable server mode",
-        "net.stream.port": "Set client or server port",
-        "net.stream.proto": "Set proto (chargen, discard, or echo)",
-    })
-
-    common.main("net.stream", "TCP bulk transfer test", args)
-
-    conf = CONFIG.copy()
-
-    endpoint = (conf["net.stream.address"], conf["net.stream.port"])
-
-    if not conf["net.stream.proto"]:
-        if conf["net.stream.listen"]:
-            conf["net.stream.proto"] = "chargen"
-        else:
-            conf["net.stream.proto"] = "discard"
-    elif conf["net.stream.proto"] not in ("chargen", "discard", "echo"):
-        common.write_help(sys.stderr, "net.stream", "TCP bulk transfer test")
-        sys.exit(1)
-
-    handler = GenericHandler(POLLER)
-    handler.configure(conf)
-
-    if conf["net.stream.listen"]:
-        conf["net.stream.server_side"] = True
-        handler.listen(endpoint)
-    else:
-        handler.connect(endpoint, count=conf["net.stream.clients"])
-
-    POLLER.loop()
-    sys.exit(0)
-
-if __name__ == "__main__":
-    main(sys.argv)

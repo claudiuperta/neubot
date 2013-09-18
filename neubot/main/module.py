@@ -44,6 +44,7 @@ MODULES = {
     "stream"              : "net.stream",
     'viewer'              : 'viewer',
     'voip'                : 'voip',
+    'skype'               : 'skype',
 }
 
 #

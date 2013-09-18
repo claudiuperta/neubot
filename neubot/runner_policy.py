@@ -31,7 +31,9 @@ TEST_NAMES = [
              'bittorrent',
              'raw',
              'speedtest',
-             'voip',
+             'skype',
+             'google_talk',
+             'viber',
              ]
 
 class RunnerPolicy(object):

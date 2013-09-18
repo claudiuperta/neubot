@@ -131,7 +131,7 @@ class RunnerCore(object):
             raise RuntimeError('runner_core: bad privacy settings')
 
         elif first_elem[0] == 'rendezvous':
-            logging.info('[==VOIP==] agent.master is %s', conf['agent.master'])
+            logging.info('agent.master is %s', conf['agent.master'])
             runner_rendezvous.run(conf['agent.master'], '9773')
 
         elif first_elem[0] == 'speedtest':
@@ -162,6 +162,13 @@ class RunnerCore(object):
                 extra = first_elem[2]
             handler.connect(('mlab-ns.appspot.com', 80),
               CONFIG['prefer_ipv6'], 0, extra)
+
+        elif first_elem[0] == 'voip':
+            uri = RUNNER_TESTS.test_to_negotiate_uri('voip')
+            conf['voip.client.uri'] =  uri
+            #client = ClientVoIP(POLLER)
+            #client.configure(conf)
+            #client.connect_uri()
 
         else:
             raise RuntimeError('runner_core: asked to run an unknown test')
