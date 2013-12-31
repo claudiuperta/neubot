@@ -31,6 +31,7 @@
 
 import sys
 import logging
+import os
 
 if __name__ == "__main__":
     sys.path.insert(0, ".")
@@ -38,6 +39,7 @@ if __name__ == "__main__":
 from neubot.background_rendezvous import BACKGROUND_RENDEZVOUS
 from neubot.net.poller import POLLER
 
+from neubot.backend import BACKEND
 from neubot.config import CONFIG
 from neubot.database import DATABASE
 from neubot.log import LOG
@@ -60,6 +62,9 @@ def main(args):
 
     privacy.complain_if_needed()
 
+    BACKEND.use_backend("neubot")
+    BACKEND.datadir_init()
+
     # FIXME We're ignoring agent.api.{address,port} that are now
     # deprecated and should be removed soon.
     background_api.start_api()
@@ -81,6 +86,10 @@ def main(args):
     logging.info('%s for POSIX: starting up', utils_version.PRODUCT)
 
     system.drop_privileges()
+
+    if os.getuid() == 0 or os.geteuid() == 0:
+        logging.error('agent: still running as root')
+        os._exit(1)
 
     if conf["agent.rendezvous"]:
         BACKGROUND_RENDEZVOUS.start()

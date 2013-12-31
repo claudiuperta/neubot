@@ -27,11 +27,34 @@ import collections
 import logging
 import random
 
+#
+# XXX Ideally the master server should set the policy, and here
+# we should also fetch the test names automatically. However,
+# it takes too much time to modify the master server now (which
+# is a change that touches a lot of legacy code), therefore
+# I think it's wiser to hardcode the policy for now.
+#
 TEST_NAMES = [
-             'bittorrent',
-             'raw',
-             'speedtest',
              'skype',
+
+              # probability: 9%
+              'raw',
+
+              # probability: 27%
+              'bittorrent',
+              'bittorrent',
+              'bittorrent',
+
+              # probability: 27%
+              'speedtest',
+              'speedtest',
+              'speedtest',
+
+              # probability: 36%
+              'dash',
+              'dash',
+              'dash',
+              'dash',
              ]
 
 class RunnerPolicy(object):
@@ -46,7 +69,7 @@ class RunnerPolicy(object):
         ''' Returns next test that must be performed '''
         selected = self.sequence[0]
         logging.info('runner_policy: test sequence: %s', list(self.sequence))
-        self.sequence.rotate()
+        self.sequence.rotate(1)
         return selected
 
     def get_random_test(self):

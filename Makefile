@@ -1,8 +1,9 @@
 # Makefile
 
 #
-# Copyright (c) 2010-2012 Simone Basso <bassosimone@gmail.com>,
-#  NEXA Center for Internet & Society at Politecnico di Torino
+# Copyright (c)
+#     Nexa Center for Internet & Society, Politecnico di Torino (DAUIN)
+#     2010-2013 Simone Basso <bassosimone@gmail.com>
 #
 # This file is part of Neubot <http://www.neubot.org/>.
 #
@@ -24,27 +25,24 @@
 # The scripts/release script will automatically update the
 # version number each time we tag with a new release.
 #
-VERSION	= 0.4.16.0
+VERSION	= 0.4.17.0
 
 #
 # The list of .PHONY targets.  This is also used to build the
 # help message--and note that the targets named with a leading
 # underscore are private.
+#
 # Here we list targets in file order because this makes it easier
 # to maintain this list.
 #
 PHONIES += help
 PHONIES += regress
 PHONIES += clean
-PHONIES += doc
 PHONIES += archive
 PHONIES += _install
-PHONIES += install
 PHONIES += uninstall
-PHONIES += _deb_data
-PHONIES += _deb_control
-PHONIES += _deb
-PHONIES += deb
+PHONIES += _install_umask_ok
+PHONIES += install
 PHONIES += release
 
 .PHONY: $(PHONIES)
@@ -60,7 +58,7 @@ help:
 
 regress:
 	rm -rf -- regress/success regress/failure
-	for FILE in $$(find regress -type f -perm -0111); do		\
+	for FILE in $$(find regress -type f -perm +0111); do		\
 	    echo "* Running regression test: $$FILE";			\
 	    ./$$FILE;							\
 	    if [ $$? -ne 0 ]; then					\
@@ -79,9 +77,6 @@ regress:
 
 clean:
 	./scripts/cleanup
-
-doc:
-	./scripts/faq
 
 #                 _     _
 #   __ _ _ __ ___| |__ (_)_   _____
@@ -128,6 +123,7 @@ PYTHON = python
 # These are some of the variables accepted by the GNU
 # build system, in order to follow the rule of the least
 # surprise [1].
+#
 # We install neubot in $(DATADIR)/neubot following sect.
 # 3.1.1 of Debian Python Policy which covers the shipping
 # of private modules [2].
@@ -145,9 +141,9 @@ MANDIR ?= $(PREFIX)/share/man
 SYSCONFDIR ?= $(PREFIX)/etc
 
 _install:
-	find . -type f -name .DS_Store -exec rm {} \;
+	find . -type f -name .DS_Store -exec rm {} \;  # H A T E
 	$(INSTALL) -d $(DESTDIR)$(BINDIR)
-	$(INSTALL) bin/neubot $(DESTDIR)$(BINDIR)/neubot
+	$(INSTALL) UNIX/bin/neubot $(DESTDIR)$(BINDIR)/neubot
 	$(INSTALL) -d $(DESTDIR)$(DATADIR)
 	for DIR in `cd UNIX/share && find . -mindepth 1 -type d`; do \
 	    $(INSTALL) -d $(DESTDIR)$(DATADIR)/$$DIR; \
@@ -178,14 +174,22 @@ _install:
 	    $(INSTALL) -m644 UNIX/etc/$$FILE $(DESTDIR)$(SYSCONFDIR)/$$FILE; \
 	    test $$? || exit 1; \
 	done
-	$(INSTALL) -d $(DESTDIR)$(DATADIR)/neubot
+	$(INSTALL) -d $(DESTDIR)$(DATADIR)/neubot/neubot
 	for DIR in `find neubot -type d`; do \
-	    $(INSTALL) -d $(DESTDIR)$(DATADIR)/$$DIR; \
+	    $(INSTALL) -d $(DESTDIR)$(DATADIR)/neubot/$$DIR; \
 	    test $$? || exit 1; \
 	done
 	for FILE in `find neubot -type f`; do \
-	    $(INSTALL) -m644 $$FILE $(DESTDIR)$(DATADIR)/$$FILE; \
+	    $(INSTALL) -m644 $$FILE $(DESTDIR)$(DATADIR)/neubot/$$FILE; \
 	    test $$? || exit 1; \
+	done
+	for DIR in mod_*; do \
+	    $(INSTALL) -d $(DESTDIR)$(DATADIR)/neubot/$$DIR; \
+	    test $$? || exit 1; \
+	    for FILE in `find $$DIR -type f`; do \
+	        $(INSTALL) -m644 $$FILE $(DESTDIR)$(DATADIR)/neubot/$$FILE; \
+	        test $$? || exit 1; \
+	    done; \
 	done
 	$(INSTALL) -d $(DESTDIR)$(LOCALSTATEDIR)/neubot
 	for PATTERN in 's|@BINDIR@|$(BINDIR)|g' 's|@DATADIR@|$(DATADIR)|g' \
@@ -194,10 +198,10 @@ _install:
 	    ./scripts/sed_inplace $$PATTERN \
 	        $(DESTDIR)$(BINDIR)/neubot \
 	        $(DESTDIR)$(DATADIR)/applications/neubot.desktop \
-	        $(DESTDIR)$(DATADIR)/neubot/notifier/unix.py \
-	        $(DESTDIR)$(DATADIR)/neubot/utils_hier.py \
-	        $(DESTDIR)$(DATADIR)/neubot/system_posix.py \
-	        $(DESTDIR)$(DATADIR)/neubot/viewer_webkit_gtk.py \
+	        $(DESTDIR)$(DATADIR)/neubot/neubot/notifier/unix.py \
+	        $(DESTDIR)$(DATADIR)/neubot/neubot/utils_hier.py \
+	        $(DESTDIR)$(DATADIR)/neubot/neubot/system_posix.py \
+	        $(DESTDIR)$(DATADIR)/neubot/neubot/viewer_webkit_gtk.py \
 	        $(DESTDIR)$(SYSCONFDIR)/xdg/autostart/neubot.desktop; \
 	    test $$? || exit 1; \
 	done
@@ -207,7 +211,7 @@ uninstall:
 	$(PYTHON) -m compileall dist/r/$(DATADIR)/neubot
 	rm -rf dist/f dist/d dist/UNINSTALL
 	find dist/r/ -depth -type f -print -exec rm {} \; >> dist/f
-	find dist/r/ -depth -type d -empty -print >> dist/d
+	find dist/r/ -depth -mindepth 1 -type d -print >> dist/d
 	sed 's|dist/r|rm -f $(DESTDIR)|g' dist/f >> dist/UNINSTALL
 	sed 's|dist/r|rmdir $(DESTDIR)|g' dist/d >> dist/UNINSTALL
 	sh dist/UNINSTALL
@@ -216,87 +220,19 @@ uninstall:
 # Install should be invoked as root and will actually
 # copy neubot on the filesystem, making sure that root
 # owns the installed files.
+#
 # Moreover it will compile the modules into .pyc files
 # using the compileall module.
 #
-install:
+_install_umask_ok:
 	make -f Makefile _install INSTALL='install -o 0 -g 0'
 	$(PYTHON) -m compileall $(DESTDIR)$(DATADIR)/neubot
 
-#      _      _
-#   __| | ___| |__
-#  / _` |/ _ \ '_ \
-# | (_| |  __/ |_) |
-#  \__,_|\___|_.__/
-#
-# Make package for Debian/Ubuntu/Mint
-#
-
-DEB_PACKAGE = dist/neubot-$(VERSION)-1_all.deb
-DEB_PACKAGE_NOX = dist/neubot-nox-$(VERSION)-1_all.deb
-
-_deb_data:
-	make -f Makefile _install DESTDIR=dist/data PREFIX=/usr \
-	    LOCALSTATEDIR=/var/lib SYSCONFDIR=/etc
-	$(INSTALL) -d dist/data/etc/apt/sources.list.d
-	$(INSTALL) -m644 Debian/neubot.list dist/data/etc/apt/sources.list.d/
-	$(INSTALL) -d dist/data/etc/cron.daily
-	$(INSTALL) Debian/cron-neubot dist/data/etc/cron.daily/neubot
-	$(INSTALL) -d dist/data/etc/init.d
-	$(INSTALL) Debian/init-neubot dist/data/etc/init.d/neubot
-	$(INSTALL) -d dist/data/usr/share/doc/neubot
-	$(INSTALL) -m644 Debian/copyright dist/data/usr/share/doc/neubot/
-	$(INSTALL) -m644 Debian/changelog.Debian.gz \
-	    dist/data/usr/share/doc/neubot
-
-_deb_control:
-	$(INSTALL) -d dist/control
-	$(INSTALL) -m644 Debian/control/control dist/control/control
-	$(INSTALL) -m644 Debian/control/conffiles dist/control/conffiles
-	$(INSTALL) Debian/control/postinst dist/control/postinst
-	$(INSTALL) Debian/control/prerm dist/control/prerm
-	$(INSTALL) Debian/control/postrm dist/control/postrm
-
-	$(INSTALL) -m644 /dev/null dist/control/md5sums
-	./scripts/cksum.py -a md5 `find dist/data -type f` >dist/control/md5sums
-	./scripts/sed_inplace 's|dist\/data\/||g' dist/control/md5sums
-
-	SIZE=`du -k -s dist/data/|cut -f1` && \
-	 ./scripts/sed_inplace "s|@SIZE@|$$SIZE|" dist/control/control
-
-#
-# Note that we must make _deb_data before _deb_control
-# because the latter must calculate the md5sums and the
-# total size.
-# Fakeroot will guarantee that we don't ship a debian
-# package with ordinary user ownership.
-#
-_deb:
-	make -f Makefile _deb_data
-	cd dist/data && tar czf ../data.tar.gz ./*
-	make -f Makefile _deb_control
-	cd dist/control && tar czf ../control.tar.gz ./*
-	echo '2.0' > dist/debian-binary
-	ar r $(DEB_PACKAGE) dist/debian-binary \
-	 dist/control.tar.gz dist/data.tar.gz
-
-	$(INSTALL) -m644 Debian/control/control-nox dist/control/control
-	SIZE=`du -k -s dist/data/|cut -f1` && \
-	 ./scripts/sed_inplace "s|@SIZE@|$$SIZE|" dist/control/control
-	cd dist/control && tar czf ../control.tar.gz ./*
-	ar r $(DEB_PACKAGE_NOX) dist/debian-binary \
-	 dist/control.tar.gz dist/data.tar.gz
-
-	cd dist && rm -rf debian-binary control.tar.gz data.tar.gz \
-         control/ data/
-	chmod 644 $(DEB_PACKAGE)
-	chmod 644 $(DEB_PACKAGE_NOX)
-
-deb:
-	fakeroot make -f Makefile _deb
-	lintian $(DEB_PACKAGE)
-	# This still fails because of /usr/share/doc/neubot...
-	lintian $(DEB_PACKAGE_NOX) || true
+install:
+	( \
+	 umask 022 && \
+	 make -f Makefile _install_umask_ok \
+	)
 
 #           _
 #  _ __ ___| | ___  __ _ ___  ___
@@ -304,7 +240,7 @@ deb:
 # | | |  __/ |  __/ (_| \__ \  __/
 # |_|  \___|_|\___|\__,_|___/\___|
 #
-# Bless a new neubot release (sources and Debian).
+# Bless a new neubot release (sources).
 #
 release:
 	if ! [ "$(VERSION)" = "$$(git describe --tags)" ]; then		\
@@ -314,10 +250,6 @@ release:
 	    exit 1;							\
 	fi
 	make clean
-	make deb
 	make archive
-	./M-Lab/deploy.sh -n
-	./scripts/sign_all
-	./scripts/update_apt
-	cd dist && find -type f -exec chmod 644 {} \;
-	cd dist && find -type d -exec chmod 755 {} \;
+	./scripts/sign_all dist/*
+	cd dist && chmod 644 *

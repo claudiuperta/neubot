@@ -1,8 +1,9 @@
 #!/bin/sh -e
 
 #
-# Copyright (c) 2011 Simone Basso <bassosimone@gmail.com>,
-#  NEXA Center for Internet & Society at Politecnico di Torino
+# Copyright (c) 2011, 2013
+#     Nexa Center for Internet & Society, Politecnico di Torino (DAUIN)
+#     and Simone Basso <bassosimone@gmail.com>
 #
 # This file is part of Neubot <http://www.neubot.org/>.
 #
@@ -21,16 +22,22 @@
 #
 
 #
-# Install Neubot on an M-Lab sliver.
-# Remotely invoked on the sliver by M-Lab/deploy.sh.
+# Install Neubot on an M-Lab sliver - Invoked on the sliver
+# by init/initialize.sh.
 #
 
 DEBUG=
-INSTALL="install -o 0 -g 0"
 
-$DEBUG cd $(dirname $0)
-$DEBUG $INSTALL rc.local /etc/rc.d/rc.local
-$DEBUG $INSTALL rsyncd.conf /etc/rsyncd.conf
+if [ `id -u` -ne 0 ]; then
+    echo "$0: FATAL: need root privileges" 1>&2
+    exit 1
+fi
+
+$DEBUG cd /home/mlab_neubot
+$DEBUG python -m compileall -q neubot/neubot/
+
 $DEBUG grep -q ^_neubot /etc/group || $DEBUG /usr/sbin/groupadd -r _neubot
+
+# From useradd(8): `The default is to disable the password.`
 $DEBUG grep -q ^_neubot /etc/passwd || \
        $DEBUG /usr/sbin/useradd -r -d/ -g_neubot -s/sbin/nologin _neubot

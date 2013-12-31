@@ -70,13 +70,13 @@ class RawNegotiate(HttpClient):
         STATE.update('test_latency', '---', publish=False)
         STATE.update('test_download', '---', publish=False)
         STATE.update('test_upload', '---', publish=False)
+        STATE.update('test_progress', '0%', publish=False)
         STATE.update('test_name', 'raw', publish=False)
         STATE.update('negotiate')
 
         # Variables
         extra['address'] = endpoint[0]
         extra['authorization'] = ''
-        extra['body'] = http_utils.Body()
         extra['local_result'] = None
         extra['port'] = endpoint[1]
         extra['prefer_ipv6'] = prefer_ipv6
@@ -116,7 +116,7 @@ class RawNegotiate(HttpClient):
         request = {}  # No options for now
         body = six.b(json.dumps(request))
         host_header = utils_net.format_epnt((extra['address'], extra['port']))
-        self.append_request(stream, 'GET', '/negotiate/raw', 'HTTP/1.1')
+        self.append_request(stream, 'POST', '/negotiate/raw', 'HTTP/1.1')
         self.append_header(stream, 'Host', host_header)
         self.append_header(stream, 'User-Agent', utils_version.HTTP_HEADER)
         self.append_header(stream, 'Content-Type', 'application/json')
@@ -129,15 +129,12 @@ class RawNegotiate(HttpClient):
         self.append_bytes(stream, body)
         http_utils.prettyprint_json(request, '>')
         self.send_message(stream)
+        context.body = six.StringIO()  # Want to save body
         extra['requests'] += 1
-
-    def handle_body_piece(self, stream, piece):
-        context = stream.opaque
-        extra = context.extra
-        extra['body'].write(piece)
 
     def handle_end_of_body(self, stream):
         # Note: this function MUST be callable multiple times
+        HttpClient.handle_end_of_body(self, stream)
         context = stream.opaque
         extra = context.extra
         if extra['requests'] <= 0:
@@ -148,7 +145,7 @@ class RawNegotiate(HttpClient):
             logging.error('raw_negotiate: bad response')
             stream.close()
             return
-        response = json.loads(six.u(extra['body'].getvalue()))
+        response = json.loads(six.u(context.body.getvalue()))
         http_utils.prettyprint_json(response, '<')
         if STATE.current == 'negotiate':
             self._process_negotiate_response(stream, response)
@@ -254,6 +251,7 @@ class RawNegotiate(HttpClient):
         self.append_bytes(stream, body)
         http_utils.prettyprint_json(result, '>')
         self.send_message(stream)
+        context.body = six.StringIO()  # Want to save body
         extra['requests'] += 1
 
     def _process_collect_response(self, stream, remote_result):
@@ -275,7 +273,7 @@ class RawNegotiate(HttpClient):
     def _save_results(opaque):
         ''' Save test results '''
         local_result, remote_result = opaque
-        remote_result['web100_snap'] = {}  # XXX disabled for 0.4.15
+        remote_result['web100_snap'] = []  # XXX disabled for 0.4.15
         complete_result = {'client': local_result, 'server': remote_result}
         BACKEND.store_raw(complete_result)
 

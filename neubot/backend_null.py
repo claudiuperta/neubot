@@ -1,8 +1,9 @@
 # neubot/backend_null.py
 
 #
-# Copyright (c) 2012 Simone Basso <bassosimone@gmail.com>,
-#  NEXA Center for Internet & Society at Politecnico di Torino
+# Copyright (c) 2012
+#     Nexa Center for Internet & Society, Politecnico di Torino (DAUIN)
+#     and Simone Basso <bassosimone@gmail.com>
 #
 # This file is part of Neubot <http://www.neubot.org/>.
 #
@@ -25,6 +26,9 @@
 class BackendNull(object):
     ''' Null backend driver '''
 
+    def __init__(self, proxy):
+        self.proxy = proxy
+
     def bittorrent_store(self, message):
         ''' Save result of BitTorrent test '''
 
@@ -37,3 +41,11 @@ class BackendNull(object):
     def skype_store(self, message):
         ''' Save result of a Skype test '''
 
+    def store_generic(self, test, results):
+        """ Store the results of a generic test """
+
+    def walk_generic(self, test, index):
+        """ Walk over the results of a generic test """
+
+    def datadir_init(self, uname=None, datadir=None):
+        ''' Initialize datadir (if needed) '''

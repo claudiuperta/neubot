@@ -28,12 +28,20 @@ var utils = (function() {
         return (1000 * x).toFixed(0) + " ms";
     }
 
+    self.toMsNumber = function(x) {
+        return (1000 * x);
+    }
+
     self.toMbitsPerSecondNumber = function(x) {
-        return (x * 8 / 1000 / 1000).toFixed(3);
+        return (x * 8 / 1000 / 1000);
     }
 
     self.toMbitsPerSecond = function(x) {
         return (x * 8 / 1000 / 1000).toFixed(3) + " Mbit/s";
+    }
+
+    self.toFixed = function(x) {
+        return x.toFixed(3);
     }
 
     self.getText = function(text) {

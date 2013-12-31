@@ -20,10 +20,12 @@
 # along with Neubot.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+import getopt
 import StringIO
 import collections
 import sys
 import logging
+import os
 
 from neubot.utils_random import RandomBody
 from neubot.config import CONFIG
@@ -38,7 +40,9 @@ from neubot.speedtest.wrapper import SpeedtestCollect
 from neubot.speedtest.wrapper import SpeedtestNegotiate_Response
 from neubot import utils_version
 
-from neubot.main import common
+from neubot.backend import BACKEND
+
+from neubot import log
 from neubot import marshal
 from neubot import privacy
 from neubot import utils
@@ -148,6 +152,12 @@ class ClientUpload(ClientHTTP):
 class ClientNegotiate(ClientHTTP):
     def connection_ready(self, stream):
         request = Message()
+        #
+        # Note: the negotiation of the other tests uses POST and includes a
+        # possibly-empty body (see, e.g., mod_dash). Here it is fine, instead,
+        # to have GET plus an empty body, because the speedtest is still
+        # based on the legacy "/speedtest/negotiate" negotiator.
+        #
         request.compose(method="GET", pathquery="/speedtest/negotiate",
           host=self.host_header)
         request["authorization"] = self.conf.get(
@@ -269,6 +279,7 @@ class ClientSpeedtest(ClientHTTP):
         STATE.update("test_latency", "---", publish=False)
         STATE.update("test_download", "---", publish=False)
         STATE.update("test_upload", "---", publish=False)
+        STATE.update("test_progress", "0%", publish=False)
         STATE.update("test_name", "speedtest")
         self.child = None
         self.streams = collections.deque()
@@ -377,6 +388,7 @@ class ClientSpeedtest(ClientHTTP):
                 latency = sum(latency) / len(latency)
                 self.conf["speedtest.client.latency"] = latency
                 # Advertise the result
+                STATE.update("test_progress", "33%", publish=False)
                 STATE.update("test_latency", utils.time_formatter(latency))
                 logging.info("* speedtest: %s ...  done, %s\n", self.state,
                   utils.time_formatter(latency))
@@ -405,12 +417,14 @@ class ClientSpeedtest(ClientHTTP):
                     self.conf["speedtest.client.%s" % self.state] = speed
                     # Advertise
                     STATE.update("test_%s" % self.state,
-                      utils.speed_formatter(speed))
+                      utils.speed_formatter(speed), publish=False)
                     logging.info("* speedtest: %s ...  done, %s\n", self.state,
                       utils.speed_formatter(speed))
                     if self.state == "download":
+                        STATE.update("test_progress", "66%")
                         self.state = "upload"
                     else:
+                        STATE.update("test_progress", "100%")
                         self.state = "collect"
                 elif elapsed > LO_THRESH/3:
                     del self.conf["speedtest.client.%s" % self.state]
@@ -481,40 +495,56 @@ CONFIG.register_defaults({
 })
 
 def main(args):
+    """ Main function """
+    try:
+        options, arguments = getopt.getopt(args[1:], '6A:fp:v')
+    except getopt.error:
+        sys.exit('usage: neubot speedtest [-6fv] [-A address] [-p port]')
+    if arguments:
+        sys.exit('usage: neubot speedtest [-6fv] [-A address] [-p port]')
 
-    CONFIG.register_descriptions({
-        "speedtest.client.uri": "Base URI to connect to",
-        "speedtest.client.nconn": "Number of concurrent connections to use",
-        "speedtest.client.latency_tries": "Number of latency measurements",
-    })
+    prefer_ipv6 = 0
+    address = 'master.neubot.org'
+    force = 0
+    port = 8080
+    noisy = 0
+    for name, value in options:
+        if name == '-6':
+            prefer_ipv6 = 1
+        elif name == '-A':
+            address = value
+        elif name == '-f':
+            force = 1
+        elif name == '-p':
+            port = int(value)
+        elif name == '-v':
+            noisy = 1
 
-    common.main("speedtest.client", "Speedtest client", args)
+    if os.path.isfile(DATABASE.path):
+        DATABASE.connect()
+        CONFIG.merge_database(DATABASE.connection())
+    else:
+        logging.warning('speedtest: database file is missing: %s',
+                        DATABASE.path)
+        BACKEND.use_backend('null')
+    if noisy:
+        log.set_verbose()
+
     conf = CONFIG.copy()
+    conf["speedtest.client.uri"] = "http://%s:%d/" % (address, port)
+    conf["prefer_ipv6"] = prefer_ipv6
 
-    #
-    # If possible use the runner, which will execute the
-    # test in the context of the neubot daemon.  Then exit
-    # to bypass the POLLER.loop() invokation that is below
-    # here.
-    # If the runner fails, fallback to the usual code path,
-    # which executes the test in the context of the local
-    # process.
-    # Set 'runned.enabled' to 0 to bypass the runner and
-    # run the test locally.
-    #
-    if (utils.intify(conf['runner.enabled']) and
-        runner_clnt.runner_client(conf["agent.api.address"],
-                                  conf["agent.api.port"],
-                                  CONFIG['verbose'],
-                                  "speedtest")):
-        sys.exit(0)
-
-    logging.info('Will run the test in the local context...')
-
-    if not privacy.allowed_to_run():
-        privacy.complain()
+    if not force:
+        if runner_clnt.runner_client(conf["agent.api.address"],
+                                     conf["agent.api.port"],
+                                     CONFIG['verbose'],
+                                     "speedtest"):
+            sys.exit(0)
+        logging.warning(
+          'speedtest: failed to contact Neubot; is Neubot running?')
         sys.exit(1)
 
+    logging.info('speedtest: run the test in the local process context...')
     client = ClientSpeedtest(POLLER)
     client.configure(conf)
 

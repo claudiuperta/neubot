@@ -37,7 +37,7 @@ import sys
 if __name__ == '__main__':
     sys.path.insert(0, '.')
 
-from neubot.buff import Buff
+from neubot.brigade import Brigade
 from neubot.defer import Deferred
 from neubot.handler import Handler
 from neubot.poller import POLLER
@@ -55,12 +55,12 @@ AUTH_LEN = 64
 LEN_MESSAGE = 32768
 MAXRECV = 262144
 
-class ClientContext(Buff):
+class ClientContext(Brigade):
 
     ''' Client context '''
 
     def __init__(self, state):
-        Buff.__init__(self)
+        Brigade.__init__(self)
         self.ticks = 0.0
         self.count = 0
         self.left = 0
@@ -152,6 +152,7 @@ class RawClient(Handler):
         context.state['alrtt_avg'] = alrtt_avg
         latency = utils.time_formatter(alrtt_avg)
         logging.info('raw_clnt: alrtt_avg: %s', latency)
+        STATE.update("test_progress", "50%", publish=False)
         STATE.update('test_latency', latency)
         logging.info('raw_clnt: estimating ALRTT... complete')
         logging.info('raw_clnt: raw goodput test... in progress')
@@ -200,6 +201,7 @@ class RawClient(Handler):
                     if timediff > 1e-06:
                         speed = utils.speed_formatter(bytesdiff / timediff)
                         logging.info('raw_clnt: goodput: %s', speed)
+                        STATE.update("test_progress", "100%", publish=False)
                         STATE.update('test_download', speed, publish=0)
                         STATE.update('test_upload', 'N/A')
                     self._periodic_internal(stream)

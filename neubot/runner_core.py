@@ -54,6 +54,7 @@ from neubot import bittorrent
 from neubot import privacy
 from neubot import runner_rendezvous
 from neubot import system
+from neubot import utils_modules
 
 class RunnerCore(object):
 
@@ -61,6 +62,7 @@ class RunnerCore(object):
 
     def __init__(self):
         ''' Initialize component that runs the selected test '''
+        self.dynamic_tests = {}
         self.queue = collections.deque()
         self.running = False
 
@@ -70,16 +72,41 @@ class RunnerCore(object):
 
     def run(self, test, deferred, auto_discover=True, ctx=None):
         ''' Run test and deferred when done '''
-        # Always refresh adjacent servers before running a transmission test
+
+        if (
+            test != "rendezvous" and
+            test != "speedtest" and
+            test != "bittorrent" and
+            test != "dload" and
+            test != "raw" and
+            test != "mlab-ns" and
+            test not in self.dynamic_tests
+           ):
+            utils_modules.modprobe("mod_" + test, "register_test",
+                                   self.dynamic_tests)
+
         if auto_discover:
             logging.info('runner_core: Need to auto-discover first...')
+
             deferred2 = Deferred()
             deferred2.add_callback(lambda param: None)
+
             if test == 'raw':
-                # Raw uses mlab-ns and wants a random server
                 self.queue.append(('mlab-ns', deferred2, {'policy': 'random'}))
-            else:
+
+            elif test == "bittorrent" or test == "speedtest":
                 self.queue.append(('rendezvous', deferred2, None))
+
+            else:
+                try:
+                    test_rec = self.dynamic_tests[test]
+                    self.queue.append((test_rec["discover_method"],
+                      deferred2, {"policy": test_rec["discover_policy"]}))
+                except (KeyboardInterrupt, SystemExit):
+                    raise
+                except:
+                    logging.warning("runner: internal error", exc_info=1)
+
         self.queue.append((test, deferred, ctx))
         self.run_queue()
 
@@ -116,8 +143,7 @@ class RunnerCore(object):
         logging.error('runner_core: catched exception: %s', error)
         NOTIFIER.publish('testdone')
 
-    @staticmethod
-    def _do_run_queue(first_elem):
+    def _do_run_queue(self, first_elem):
         ''' Actually run first element in queue '''
 
         # Make a copy of current settings
@@ -168,6 +194,16 @@ class RunnerCore(object):
             #client.configure(conf)
             #client.connect_uri()
 
+        elif first_elem[0] in self.dynamic_tests:
+            address = RUNNER_HOSTS.get_random_host()
+            port = 80  # XXX
+            self.dynamic_tests[first_elem[0]]["test_func"]({
+                "address": address,
+                "conf": CONFIG.copy(),
+                "poller": POLLER,
+                "port": port,
+            })
+
         else:
             raise RuntimeError('runner_core: asked to run an unknown test')
 
@@ -181,9 +217,9 @@ class RunnerCore(object):
         # code time to stream logs to the client in case
         # connections fails immediately.
         # This must not be done when we're processing the
-        # somewhat internal 'rendezvous' test.
+        # somewhat internal 'rendezvous' or 'mlab-ns' tests.
         #
-        if self.queue[0][0] != 'rendezvous':
+        if self.queue[0][0] != 'rendezvous' and self.queue[0][0] != 'mlab-ns':
             POLLER.sched(2, STREAMING_LOG.stop_streaming)
 
         # Paranoid
